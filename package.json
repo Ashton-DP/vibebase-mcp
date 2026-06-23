@@ -4,7 +4,7 @@
   "description": "MCP server for Vibebase — let your AI assistant provision a hosted backend (database + auth) in one command.",
   "type": "module",
   "bin": {
-    "vibebase-mcp": "./server.js"
+    "vibebase-mcp": "server.js"
   },
   "engines": {
     "node": ">=18"
