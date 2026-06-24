@@ -12,7 +12,7 @@ import path from 'node:path';
 
 const SERVER = (process.env.VIBEBASE_URL || 'https://vibebase.io').replace(/\/$/, '');
 const KEY = process.env.VIBEBASE_KEY || '';
-const SERVER_INFO = { name: 'vibebase', version: '0.1.0' };
+const SERVER_INFO = { name: 'vibebase', version: '0.1.2' };
 
 const TOOLS = [{
   name: 'provision_backend',
@@ -29,7 +29,31 @@ const TOOLS = [{
     },
     required: ['name'],
   },
+}, {
+  name: 'branch_backend',
+  description:
+    'Create an instant dev/preview branch of an existing backend — a full copy-on-write clone ' +
+    'of its data, ready in seconds. Use to get a safe scratch/preview database without touching ' +
+    'production. Returns a connection string for the branch.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      ref: { type: 'string', description: 'The backend ref to branch (from provision_backend or the dashboard).' },
+      name: { type: 'string', description: 'Optional name for the branch (e.g. "preview", "dev").' },
+    },
+    required: ['ref'],
+  },
 }];
+
+async function branch(ref, name) {
+  const res = await fetch(`${SERVER}/branch`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...(KEY ? { 'x-vibebase-key': KEY } : {}) },
+    body: JSON.stringify({ ref, name }),
+  });
+  if (!res.ok) throw new Error(`Branch failed (${res.status}). ${(await res.text().catch(() => '')) || ''}`);
+  return res.json();
+}
 
 async function provision(name) {
   const res = await fetch(`${SERVER}/provision`, {
@@ -89,23 +113,34 @@ async function handle(msg) {
     case 'tools/list':
       return ok(id, { tools: TOOLS });
     case 'tools/call': {
-      if (params?.name !== 'provision_backend') return fail(id, -32602, `Unknown tool: ${params?.name}`);
-      const args = params.arguments || {};
-      try {
-        const targetDir = args.target || process.cwd();
-        const backend = await provision(args.name || 'app');
-        const { clientPath, depNote } = await writeFiles(targetDir, backend);
-        const text = [
-          `✓ Backend provisioned for "${args.name}" (${backend.provider}).`,
-          `Dashboard: ${backend.dashboardUrl}`,
-          `Wrote .env.local and ${clientPath} into ${targetDir}.`,
-          depNote ? `⚠ ${depNote}` : '',
-          `The app can now use the backend via ${clientPath} (auth, storage, vector, migrate, insertMany).`,
-        ].filter(Boolean).join('\n');
-        return ok(id, { content: [{ type: 'text', text }] });
-      } catch (err) {
-        return ok(id, { content: [{ type: 'text', text: `Provisioning failed: ${err.message}` }], isError: true });
+      const args = params?.arguments || {};
+      if (params?.name === 'provision_backend') {
+        try {
+          const targetDir = args.target || process.cwd();
+          const backend = await provision(args.name || 'app');
+          const { clientPath, depNote } = await writeFiles(targetDir, backend);
+          const text = [
+            `✓ Backend provisioned for "${args.name}" (${backend.provider}).`,
+            `Dashboard: ${backend.dashboardUrl}`,
+            `Wrote .env.local and ${clientPath} into ${targetDir}.`,
+            depNote ? `⚠ ${depNote}` : '',
+            `The app can now use the backend via ${clientPath} (auth, storage, vector, migrate, insertMany).`,
+          ].filter(Boolean).join('\n');
+          return ok(id, { content: [{ type: 'text', text }] });
+        } catch (err) {
+          return ok(id, { content: [{ type: 'text', text: `Provisioning failed: ${err.message}` }], isError: true });
+        }
       }
+      if (params?.name === 'branch_backend') {
+        try {
+          const b = await branch(args.ref, args.name);
+          const text = `✓ Dev branch "${b.name}" of ${b.ref} created.\nConnection string (set as DATABASE_URL for the branch):\n${b.connectionUri}`;
+          return ok(id, { content: [{ type: 'text', text }] });
+        } catch (err) {
+          return ok(id, { content: [{ type: 'text', text: `Branch failed: ${err.message}` }], isError: true });
+        }
+      }
+      return fail(id, -32602, `Unknown tool: ${params?.name}`);
     }
     default:
       return fail(id, -32601, `Method not found: ${method}`);
