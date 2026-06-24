@@ -1,6 +1,6 @@
 {
   "name": "vibebase-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP server for Vibebase — let your AI assistant provision a hosted backend (database + auth) in one command.",
   "type": "module",
   "bin": {

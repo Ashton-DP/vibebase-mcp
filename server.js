@@ -7,7 +7,7 @@
 //   VIBEBASE_KEY  - your Vibebase API key (from your dashboard)
 
 import readline from 'node:readline';
-import { writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const SERVER = (process.env.VIBEBASE_URL || 'https://vibebase.io').replace(/\/$/, '');
@@ -52,7 +52,24 @@ async function writeFiles(dir, backend) {
   const full = path.join(dir, file.path);
   await mkdir(path.dirname(full), { recursive: true });
   await writeFile(full, file.code);
-  return file.path;
+
+  // The generated client needs @neondatabase/serverless — declare it so the
+  // user's normal install picks it up (avoids a "module not found" wall).
+  const dep = '@neondatabase/serverless';
+  let depNote = `This client needs ${dep} — run: npm install ${dep}`;
+  try {
+    const pkgPath = path.join(dir, 'package.json');
+    const pkg = JSON.parse(await readFile(pkgPath, 'utf8'));
+    pkg.dependencies ||= {};
+    if (pkg.dependencies[dep]) {
+      depNote = '';
+    } else {
+      pkg.dependencies[dep] = '^1.0.0';
+      await writeFile(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+      depNote = `Added ${dep} to package.json — run your package install (npm/pnpm/yarn/bun) to fetch it.`;
+    }
+  } catch { /* no package.json — fall back to the install instruction */ }
+  return { clientPath: file.path, depNote };
 }
 
 const logErr = (...a) => process.stderr.write(a.join(' ') + '\n');
@@ -77,13 +94,14 @@ async function handle(msg) {
       try {
         const targetDir = args.target || process.cwd();
         const backend = await provision(args.name || 'app');
-        const clientPath = await writeFiles(targetDir, backend);
+        const { clientPath, depNote } = await writeFiles(targetDir, backend);
         const text = [
           `✓ Backend provisioned for "${args.name}" (${backend.provider}).`,
           `Dashboard: ${backend.dashboardUrl}`,
           `Wrote .env.local and ${clientPath} into ${targetDir}.`,
-          `The app can now use the backend via ${clientPath}.`,
-        ].join('\n');
+          depNote ? `⚠ ${depNote}` : '',
+          `The app can now use the backend via ${clientPath} (auth, storage, vector, migrate, insertMany).`,
+        ].filter(Boolean).join('\n');
         return ok(id, { content: [{ type: 'text', text }] });
       } catch (err) {
         return ok(id, { content: [{ type: 'text', text: `Provisioning failed: ${err.message}` }], isError: true });
