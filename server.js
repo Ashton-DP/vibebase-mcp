@@ -77,6 +77,13 @@ async function writeFiles(dir, backend) {
   await mkdir(path.dirname(full), { recursive: true });
   await writeFile(full, file.code);
 
+  // Type definitions for TS editor autocomplete + checking, if provided.
+  if (backend.typesFile?.code) {
+    const tf = path.join(dir, backend.typesFile.path);
+    await mkdir(path.dirname(tf), { recursive: true });
+    await writeFile(tf, backend.typesFile.code);
+  }
+
   // The generated client needs @neondatabase/serverless — declare it so the
   // user's normal install picks it up (avoids a "module not found" wall).
   const dep = '@neondatabase/serverless';
