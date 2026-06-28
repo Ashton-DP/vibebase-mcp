@@ -1,6 +1,6 @@
 {
   "name": "vibebase-mcp",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "MCP server for Vibebase — let your AI assistant provision a hosted backend (database + auth) in one command.",
   "type": "module",
   "bin": {
@@ -13,7 +13,16 @@
     "server.js",
     "README.md"
   ],
-  "keywords": ["mcp", "vibebase", "backend", "ai", "claude", "cursor", "database", "auth"],
+  "keywords": [
+    "mcp",
+    "vibebase",
+    "backend",
+    "ai",
+    "claude",
+    "cursor",
+    "database",
+    "auth"
+  ],
   "homepage": "https://vibebase.io",
   "license": "MIT"
 }

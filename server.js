@@ -59,7 +59,9 @@ async function provision(name) {
   const res = await fetch(`${SERVER}/provision`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...(KEY ? { 'x-vibebase-key': KEY } : {}) },
-    body: JSON.stringify({ name }),
+    // This MCP installs whatever dep the server specifies (backend.clientDep),
+    // so opt into the thin re-export wrapper instead of the inlined file.
+    body: JSON.stringify({ name, clientMode: 'package' }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
@@ -84,9 +86,12 @@ async function writeFiles(dir, backend) {
     await writeFile(tf, backend.typesFile.code);
   }
 
-  // The generated client needs @neondatabase/serverless — declare it so the
-  // user's normal install picks it up (avoids a "module not found" wall).
-  const dep = '@neondatabase/serverless';
+  // Declare the dependency the server says this client needs, so the user's
+  // normal install picks it up (avoids a "module not found" wall). The server
+  // specifies it via backend.clientDep (wrapper mode → vibebase-client); fall
+  // back to @neondatabase/serverless for older servers that inline the client.
+  const dep = backend.clientDep?.name || '@neondatabase/serverless';
+  const range = backend.clientDep?.range || '^1.0.0';
   let depNote = `This client needs ${dep} — run: npm install ${dep}`;
   try {
     const pkgPath = path.join(dir, 'package.json');
@@ -95,7 +100,7 @@ async function writeFiles(dir, backend) {
     if (pkg.dependencies[dep]) {
       depNote = '';
     } else {
-      pkg.dependencies[dep] = '^1.0.0';
+      pkg.dependencies[dep] = range;
       await writeFile(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
       depNote = `Added ${dep} to package.json — run your package install (npm/pnpm/yarn/bun) to fetch it.`;
     }
