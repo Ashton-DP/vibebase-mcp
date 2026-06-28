@@ -1,2 +1,7 @@
 node_modules
 .DS_Store
+
+# secrets — never commit
+npm_recovery_codes_vibebase.txt
+.npmrc
+*.recovery*
